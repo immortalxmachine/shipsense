@@ -1,0 +1,10 @@
+.venv/
+venv/
+data/*.csv
+data/*.parquet
+models/*.joblib
+__pycache__/
+*.pyc
+.pytest_cache/
+.git/
+tests/
