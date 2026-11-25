@@ -39,11 +39,16 @@ def test_predict_with_stub_model():
 
 
 def test_predict_validation_error():
-    # month=13 is out of range -> 422 from Pydantic validation.
-    bad = dict(VALID_PAYLOAD, month=13)
-    with TestClient(app) as client:
-        resp = client.post("/predict", json=bad)
-    assert resp.status_code == 422
+    # Override the predictor so the dependency doesn't 503 before validation
+    # (there may be no trained model in CI). month=13 is out of range -> 422.
+    app.dependency_overrides[get_predictor] = lambda: StubPredictor()
+    try:
+        bad = dict(VALID_PAYLOAD, month=13)
+        with TestClient(app) as client:
+            resp = client.post("/predict", json=bad)
+        assert resp.status_code == 422
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_predict_returns_503_when_model_missing():
