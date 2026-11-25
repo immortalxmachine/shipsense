@@ -1,0 +1,17 @@
+# Normalize line endings. Repo stores LF; Git handles working-copy conversion.
+* text=auto eol=lf
+
+# Windows batch files must stay CRLF.
+*.cmd  text eol=crlf
+*.bat  text eol=crlf
+
+# The Maven wrapper shell script MUST be LF to run on Linux/macOS CI.
+mvnw   text eol=lf
+
+# Treat these as binary (no EOL conversion, no diff noise).
+*.jar  binary
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.parquet binary
+*.joblib  binary
