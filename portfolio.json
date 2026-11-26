@@ -1,0 +1,17 @@
+{
+  "title": "ShipSense",
+  "tagline": "Parcel delivery ETA prediction & route optimization",
+  "category": "Software",
+  "highlights": [
+    "Layered Spring Boot API (controller/service/repository, JPA, global error handling).",
+    "Python ETL + scikit-learn training pipeline (50k synthetic rows → 49k cleaned) for ETA prediction.",
+    "Dijkstra-based route optimization with a React + TypeScript frontend, containerized with Docker."
+  ],
+  "metrics": [
+    { "label": "Training rows", "value": "49K" },
+    { "label": "Services", "value": "3" }
+  ],
+  "demo": null,
+  "featured": true,
+  "order": 4
+}
