@@ -1,4 +1,4 @@
-"""Train delay-prediction models and write real metrics.
+"""Train the delivery-time (ETA) model on real Olist data and write real metrics.
 
 Trains two models on the cleaned data:
   * a LinearRegression **baseline**, and
@@ -7,8 +7,13 @@ then reports MAE and RMSE for both on a held-out test set, plus the gradient
 model's feature importances. The model is saved with joblib and all metrics are
 written to ``models/metrics.json`` (every number in the README comes from here).
 
-If the cleaned dataset is missing, the raw-generation + ETL steps run first, so
-the whole thing works with one command:
+Target: the actual delivery time in days, observed from real timestamps
+(``order_delivered_customer_date − order_purchase_timestamp``). No value is
+invented.
+
+If the cleaned dataset is missing, the raw-build + ETL steps run first, so the
+whole thing works with one command (the Olist CSVs must already be unzipped in
+``data/olist/`` — see ``pipeline/build_dataset.py``):
     python train.py
 """
 from __future__ import annotations
@@ -25,19 +30,19 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, root_mean_squared_error
 from sklearn.model_selection import train_test_split
 
-from pipeline import clean_transform, generate_data
+from pipeline import build_dataset, clean_transform
 from pipeline.features import FEATURE_COLUMNS
 
-TARGET = "delay_hours"
+TARGET = "delivery_days"
 
 
-def ensure_clean_data(clean_path: str, raw_path: str, rows: int) -> None:
-    """Generate raw data + run ETL if the cleaned dataset does not exist yet."""
+def ensure_clean_data(clean_path: str, raw_path: str, olist_dir: str) -> None:
+    """Build the raw dataset + run ETL if the cleaned dataset does not exist yet."""
     if os.path.exists(clean_path):
         return
     if not os.path.exists(raw_path):
-        print(f"[train] raw data missing -> generating {rows:,} synthetic rows")
-        df = generate_data.generate(rows)
+        print(f"[train] raw data missing -> building from Olist CSVs in {olist_dir}")
+        df = build_dataset.build(olist_dir)
         os.makedirs(os.path.dirname(raw_path) or ".", exist_ok=True)
         df.to_csv(raw_path, index=False)
     print("[train] cleaned data missing -> running ETL")
@@ -53,14 +58,14 @@ def evaluate(model, X_test, y_test) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train ShipSense delay models.")
+    parser = argparse.ArgumentParser(description="Train ShipSense delivery-time models.")
     parser.add_argument("--data", default="data/clean_shipments.parquet")
     parser.add_argument("--raw", default="data/raw_shipments.csv")
-    parser.add_argument("--rows", type=int, default=50_000)
+    parser.add_argument("--olist", default=os.getenv("OLIST_DIR", "../data/olist"))
     parser.add_argument("--model-dir", default="models")
     args = parser.parse_args()
 
-    ensure_clean_data(args.data, args.raw, args.rows)
+    ensure_clean_data(args.data, args.raw, args.olist)
 
     df = pd.read_parquet(args.data)
     X = df[FEATURE_COLUMNS]
@@ -96,9 +101,13 @@ def main() -> None:
 
     metrics = {
         "trained_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "dataset": "Olist Brazilian E-Commerce (Kaggle: olistbr/brazilian-ecommerce)",
+        "target": "delivery_days (actual order_delivered_customer_date - order_purchase_timestamp)",
         "n_rows": int(len(df)),
         "n_train": int(len(X_train)),
         "n_test": int(len(X_test)),
+        "mean_delivery_days": round(float(y.mean()), 3),
+        "median_delivery_days": round(float(y.median()), 3),
         "baseline_model": "LinearRegression",
         "model": "GradientBoostingRegressor",
         "baseline_metrics": baseline_metrics,
@@ -110,8 +119,8 @@ def main() -> None:
     with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2)
 
-    print(f"[train] baseline  MAE={baseline_metrics['mae']}  RMSE={baseline_metrics['rmse']}")
-    print(f"[train] gradient  MAE={model_metrics['mae']}  RMSE={model_metrics['rmse']}")
+    print(f"[train] baseline  MAE={baseline_metrics['mae']}  RMSE={baseline_metrics['rmse']}  (days)")
+    print(f"[train] gradient  MAE={model_metrics['mae']}  RMSE={model_metrics['rmse']}  (days)")
     print(f"[train] MAE improvement over baseline: {improvement_pct}%")
     print(f"[train] saved model -> {model_path}")
     print(f"[train] saved metrics -> {metrics_path}")

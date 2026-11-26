@@ -35,7 +35,7 @@ class RouteServiceTest {
     RouteService routeService;
 
     private static Hub hub(String code) {
-        return new Hub(code, code + " Hub", code, new BigDecimal("0.0"), new BigDecimal("0.0"));
+        return new Hub(code, code + " Hub", code, "SE", new BigDecimal("0.0"), new BigDecimal("0.0"));
     }
 
     private static Route route(Hub a, Hub b, double km, double hrs) {
@@ -46,38 +46,38 @@ class RouteServiceTest {
     void setUp() {
         routeService = new RouteService(routeRepository, hubRepository, new DijkstraRouteOptimizer());
 
-        Hub chn = hub("CHN");
-        Hub blr = hub("BLR");
-        Hub del = hub("DEL");
-        // CHN-BLR-DEL = 350 + 2000 = 2350  beats direct CHN-DEL = 2500
+        Hub sp = hub("SP");
+        Hub mg = hub("MG");
+        Hub rs = hub("RS");
+        // SP-MG-RS = 350 + 2000 = 2350  beats direct SP-RS = 2500
         List<Route> edges = List.of(
-                route(chn, blr, 350, 6), route(blr, chn, 350, 6),
-                route(blr, del, 2000, 33), route(del, blr, 2000, 33),
-                route(chn, del, 2500, 42), route(del, chn, 2500, 42)
+                route(sp, mg, 350, 6), route(mg, sp, 350, 6),
+                route(mg, rs, 2000, 33), route(rs, mg, 2000, 33),
+                route(sp, rs, 2500, 42), route(rs, sp, 2500, 42)
         );
         lenient().when(routeRepository.findAll()).thenReturn(edges);
     }
 
     @Test
     void findOptimal_choosesShortestAndNormalisesCase() {
-        when(hubRepository.existsByCode("CHN")).thenReturn(true);
-        when(hubRepository.existsByCode("DEL")).thenReturn(true);
+        when(hubRepository.existsByCode("SP")).thenReturn(true);
+        when(hubRepository.existsByCode("RS")).thenReturn(true);
 
-        RouteResponse resp = routeService.findOptimal("chn", "del"); // lower-case input
+        RouteResponse resp = routeService.findOptimal("sp", "rs"); // lower-case input
 
-        assertThat(resp.from()).isEqualTo("CHN");
-        assertThat(resp.to()).isEqualTo("DEL");
-        assertThat(resp.path()).containsExactly("CHN", "BLR", "DEL");
+        assertThat(resp.from()).isEqualTo("SP");
+        assertThat(resp.to()).isEqualTo("RS");
+        assertThat(resp.path()).containsExactly("SP", "MG", "RS");
         assertThat(resp.totalDistanceKm()).isEqualTo(2350.0);
     }
 
     @Test
     void findOptimal_throwsWhenHubUnknown() {
-        when(hubRepository.existsByCode("CHN")).thenReturn(true);
-        when(hubRepository.existsByCode("XXX")).thenReturn(false);
+        when(hubRepository.existsByCode("SP")).thenReturn(true);
+        when(hubRepository.existsByCode("ZZ")).thenReturn(false);
 
-        assertThatThrownBy(() -> routeService.findOptimal("CHN", "XXX"))
+        assertThatThrownBy(() -> routeService.findOptimal("SP", "ZZ"))
                 .isInstanceOf(NotFoundException.class)
-                .hasMessageContaining("XXX");
+                .hasMessageContaining("ZZ");
     }
 }

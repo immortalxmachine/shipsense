@@ -38,7 +38,7 @@ public class MlPredictionClient {
             if (body == null) {
                 return PredictionResult.unavailable();
             }
-            return new PredictionResult(body.predictedDelayHours(),
+            return new PredictionResult(body.predictedDeliveryDays(),
                     body.onTimeProbability(), true);
 
         } catch (Exception ex) {

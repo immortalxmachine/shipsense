@@ -38,7 +38,7 @@ export default function TrackPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Track a parcel</h1>
         <p className="text-sm text-slate-500">
-          Enter a tracking number to see its status, scan history and predicted delay.
+          Enter a tracking number to see its status, scan history and predicted delivery time.
         </p>
       </div>
 
@@ -72,17 +72,17 @@ export default function TrackPage() {
                 {shipment.originCity} <span className="text-slate-400">→</span> {shipment.destCity}
               </div>
               <dl className="grid grid-cols-2 gap-x-4 gap-y-1 pt-2 text-slate-600">
-                <dt>Service</dt><dd className="text-right font-medium">{shipment.serviceType}</dd>
                 <dt>Weight</dt><dd className="text-right font-medium">{shipment.weightKg} kg</dd>
-                <dt>Created</dt><dd className="text-right">{formatDate(shipment.createdAt)}</dd>
-                <dt>Promised</dt><dd className="text-right">{formatDate(shipment.promisedAt)}</dd>
+                <dt>Freight</dt><dd className="text-right font-medium">R$ {shipment.freightValue.toFixed(2)}</dd>
+                <dt>Purchased</dt><dd className="text-right">{formatDate(shipment.createdAt)}</dd>
+                <dt>Estimated</dt><dd className="text-right">{formatDate(shipment.promisedAt)}</dd>
                 <dt>Delivered</dt><dd className="text-right">{formatDate(shipment.deliveredAt)}</dd>
               </dl>
             </div>
           </Card>
 
-          <Card title="Predicted delay (ML)">
-            {shipment.predictedDelayHours === null ? (
+          <Card title="Predicted delivery time (ML)">
+            {shipment.predictedDeliveryDays === null ? (
               <p className="text-sm text-slate-500">
                 ML service unavailable — showing tracking only.
               </p>
@@ -90,10 +90,10 @@ export default function TrackPage() {
               <div className="space-y-3">
                 <div>
                   <div className="text-3xl font-bold text-brand">
-                    {shipment.predictedDelayHours.toFixed(1)}
-                    <span className="ml-1 text-base font-normal text-slate-500">hours</span>
+                    {shipment.predictedDeliveryDays.toFixed(1)}
+                    <span className="ml-1 text-base font-normal text-slate-500">days</span>
                   </div>
-                  <p className="text-xs text-slate-500">estimated delay vs. promised time</p>
+                  <p className="text-xs text-slate-500">predicted purchase-to-delivery time</p>
                 </div>
                 {shipment.onTimeProbability !== null && (
                   <div>

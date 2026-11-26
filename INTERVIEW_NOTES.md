@@ -71,21 +71,23 @@ gracefully instead of failing.
 Overfitting is when a model memorises training data and generalises poorly. We
 check it by reporting metrics on a **held-out test set** (20%, never seen in
 training) and comparing against a baseline. The gap between train and test error
-would reveal overfitting; gradient boosting here generalises (test MAE 2.035).
+would reveal overfitting; gradient boosting here generalises (test MAE 4.87 days).
 → `train.py` (`train_test_split`, `evaluate`).
 
 ### 11. MAE vs RMSE — what's the difference and why report both?
-MAE is the mean absolute error (average miss, in hours, robust to outliers). RMSE
+MAE is the mean absolute error (average miss, in days, robust to outliers). RMSE
 squares errors before averaging, so it penalises large misses more. Reporting both
-shows typical error (MAE) and sensitivity to big errors (RMSE).
+shows typical error (MAE 4.87) and sensitivity to big errors (RMSE 7.16) — the gap
+reflects a long tail of a few very slow real deliveries.
 → `train.py` (`mean_absolute_error`, `root_mean_squared_error`).
 
 ### 12. Why gradient boosting over linear regression here?
-The synthetic delay rule has non-linear interactions (a hub-load threshold,
-festival×monsoon compounding, distance×load coupling). Linear regression can't
-represent those, so it plateaus (MAE 2.633). Gradient boosting captures them
-(MAE 2.035, ~23% better).
-→ `pipeline/generate_data.py` (delay rule), `train.py`.
+Real delivery time is non-linear in the features — distance dominates but with
+regional and seasonal effects a line can't capture — so linear regression
+plateaus (MAE 5.29 days). Gradient boosting captures those non-linearities
+(MAE 4.87 days, ~8% better). The modest gap is honest: real logistics data is
+noisier than a clean synthetic rule.
+→ `pipeline/build_dataset.py` (real features), `train.py`.
 
 ### 13. What is train/serve skew and how do you prevent it?
 Skew is when features are built differently in training vs serving, so the model
@@ -94,21 +96,23 @@ one shared module used by both paths.
 → `pipeline/features.py` (`engineer`, `single_row_frame`).
 
 ### 14. What does your ETL step do?
-`clean_transform.py` loads the raw CSV, drops rows with invalid weight, distance,
-service type or calendar fields, removes duplicates, logs how many of each were
-dropped (a `CleaningReport`), engineers features, and writes Parquet + CSV.
+`clean_transform.py` loads the raw per-order CSV, drops rows missing essential
+fields or with invalid weight, freight, delivery time or region, removes
+duplicates, logs how many of each were dropped (a `CleaningReport`), engineers
+features, and writes Parquet + CSV. Rows are dropped, never imputed — the dataset
+is large enough that we never invent a value.
 → `pipeline/clean_transform.py` (`clean`, `run`).
 
 ### 15. Why Pydantic in the ML service?
 Pydantic models validate and coerce the request body automatically — e.g.
-`month` must be 1–12, `service_type` must be one of three literals. Invalid input
-returns 422 before our code runs.
+`purchase_month` must be 1–12, `cust_region`/`seller_region` must be one of five
+IBGE region literals. Invalid input returns 422 before our code runs.
 → `app/schemas.py` (`PredictRequest`).
 
 ### 16. What SQL did you write beyond CRUD?
-`db/analytics.sql`: on-time % per hub, average delay by service type, busiest
-routes, a **window function** (`DENSE_RANK` per month) and a **CTE** comparing
-each hub to the network-average on-time rate.
+`db/analytics.sql`: on-time % per origin state, average delivery time by
+destination macro-region, busiest lanes, a **window function** (`DENSE_RANK` per
+month) and a **CTE** comparing each state to the network-average on-time rate.
 → `db/analytics.sql`.
 
 ### 17. How does CI work?
@@ -130,8 +134,8 @@ model registry / object storage, routing graphs could be cached, and heavy
 training would run on a schedule. See `docs/deploy.md`.
 
 ### 20. How would you improve the model?
-Train on real historical data; add features (weather APIs, carrier, time-of-day);
-try hyperparameter tuning and cross-validation; calibrate the on-time probability
-(currently a logistic transform of predicted delay) against observed outcomes;
-monitor for drift in production.
+Add features (product category, seller history, review scores, carrier handoff
+lag); try hyperparameter tuning and cross-validation; calibrate the on-time
+probability (currently a logistic transform of predicted-vs-estimated delivery
+time) against observed on-time outcomes; monitor for drift in production.
 → `app/predictor.py` (`on_time_probability`), `train.py`.

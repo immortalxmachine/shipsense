@@ -1,19 +1,20 @@
 -- ===========================================================================
 -- ShipSense — PostgreSQL schema
 -- ---------------------------------------------------------------------------
--- Four core tables model a parcel-logistics network:
---   hubs            physical sorting facilities (nodes in the route graph)
---   routes          direct road links between two hubs (edges in the graph)
---   shipments       a parcel moving from an origin hub to a destination hub
+-- Four core tables model a parcel-logistics network over Brazil's federative
+-- units (the hubs), built around the real Olist e-commerce dataset:
+--   hubs            Brazilian states/DF (nodes in the route graph)
+--   routes          direct links between bordering states (edges in the graph)
+--   shipments       a parcel moving from an origin state to a destination state
 --   tracking_events the scan history of a shipment as it passes through hubs
 --
 -- Design notes (good interview talking points):
 --   * Every foreign key is indexed so JOINs and lookups stay fast.
---   * `routes` stores each physical road as TWO directed rows (A->B and B->A)
+--   * `routes` stores each physical link as TWO directed rows (A->B and B->A)
 --     so the Java RouteOptimizer can read a plain directed adjacency list and
 --     still support one-way links later without schema changes.
---   * `hubs.code` is a short human code (CHN, DEL, ...) used by the REST API,
---     e.g. GET /api/routes/optimal?from=CHN&to=DEL.
+--   * `hubs.code` is the 2-letter UF (SP, RJ, MG, ...) used by the REST API,
+--     e.g. GET /api/routes/optimal?from=SP&to=RS.
 -- ===========================================================================
 
 -- Run idempotently: drop in dependency order first.
@@ -23,15 +24,17 @@ DROP TABLE IF EXISTS routes         CASCADE;
 DROP TABLE IF EXISTS hubs           CASCADE;
 
 -- ---------------------------------------------------------------------------
--- hubs
+-- hubs  (one per Brazilian federative unit)
 -- ---------------------------------------------------------------------------
 CREATE TABLE hubs (
-    id    SERIAL PRIMARY KEY,
-    code  CHAR(3)      NOT NULL UNIQUE,          -- CHN, DEL, MUM ...
-    name  VARCHAR(100) NOT NULL,                 -- "Chennai Hub"
-    city  VARCHAR(100) NOT NULL,
-    lat   NUMERIC(9,6) NOT NULL,                 -- latitude  (deg)
-    lng   NUMERIC(9,6) NOT NULL                  -- longitude (deg)
+    id      SERIAL PRIMARY KEY,
+    code    CHAR(2)      NOT NULL UNIQUE,         -- UF: SP, RJ, MG ...
+    name    VARCHAR(100) NOT NULL,               -- "São Paulo Hub"
+    city    VARCHAR(100) NOT NULL,               -- state name, e.g. "São Paulo"
+    region  CHAR(2)      NOT NULL                 -- IBGE macro-region
+            CHECK (region IN ('N','NE','CO','SE','S')),
+    lat     NUMERIC(9,6) NOT NULL,               -- centroid latitude  (deg)
+    lng     NUMERIC(9,6) NOT NULL                -- centroid longitude (deg)
 );
 
 -- ---------------------------------------------------------------------------
@@ -54,17 +57,16 @@ CREATE INDEX idx_routes_to_hub ON routes(to_hub);
 CREATE TABLE shipments (
     id            SERIAL PRIMARY KEY,
     tracking_no   VARCHAR(20)  NOT NULL UNIQUE,
-    origin_hub    INTEGER      NOT NULL REFERENCES hubs(id),
-    dest_hub      INTEGER      NOT NULL REFERENCES hubs(id),
+    origin_hub    INTEGER      NOT NULL REFERENCES hubs(id),  -- seller state
+    dest_hub      INTEGER      NOT NULL REFERENCES hubs(id),  -- customer state
     weight_kg     NUMERIC(7,2) NOT NULL CHECK (weight_kg > 0),
-    service_type  VARCHAR(20)  NOT NULL
-                  CHECK (service_type IN ('STANDARD', 'EXPRESS', 'PRIORITY')),
+    freight_value NUMERIC(10,2) NOT NULL CHECK (freight_value >= 0),  -- BRL
     status        VARCHAR(20)  NOT NULL DEFAULT 'CREATED'
                   CHECK (status IN ('CREATED','IN_TRANSIT','OUT_FOR_DELIVERY',
                                     'DELIVERED','DELAYED','EXCEPTION')),
-    created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    promised_at   TIMESTAMPTZ  NOT NULL,          -- SLA deadline
-    delivered_at  TIMESTAMPTZ,                     -- NULL until delivered
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),  -- order purchase time
+    promised_at   TIMESTAMPTZ  NOT NULL,                -- carrier's estimated date
+    delivered_at  TIMESTAMPTZ,                          -- NULL until delivered
     CHECK (dest_hub <> origin_hub)
 );
 

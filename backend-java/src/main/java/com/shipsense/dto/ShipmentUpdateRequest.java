@@ -1,6 +1,5 @@
 package com.shipsense.dto;
 
-import com.shipsense.entity.ServiceType;
 import com.shipsense.entity.ShipmentStatus;
 import jakarta.validation.constraints.DecimalMin;
 
@@ -15,7 +14,8 @@ import java.time.OffsetDateTime;
 public record ShipmentUpdateRequest(
         @DecimalMin(value = "0.01", message = "weightKg must be positive")
         BigDecimal weightKg,
-        ServiceType serviceType,
+        @DecimalMin(value = "0.0", message = "freightValue must be non-negative")
+        BigDecimal freightValue,
         ShipmentStatus status,
         OffsetDateTime promisedAt,
         OffsetDateTime deliveredAt

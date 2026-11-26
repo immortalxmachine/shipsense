@@ -30,9 +30,9 @@ public class Shipment {
     @Column(name = "weight_kg", nullable = false, precision = 7, scale = 2)
     private BigDecimal weightKg;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "service_type", nullable = false, length = 20)
-    private ServiceType serviceType;
+    /** Total freight paid for the shipment, in BRL (a real Olist order attribute). */
+    @Column(name = "freight_value", nullable = false, precision = 10, scale = 2)
+    private BigDecimal freightValue;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -51,12 +51,12 @@ public class Shipment {
     }
 
     public Shipment(String trackingNo, Hub originHub, Hub destHub, BigDecimal weightKg,
-                    ServiceType serviceType, OffsetDateTime promisedAt) {
+                    BigDecimal freightValue, OffsetDateTime promisedAt) {
         this.trackingNo = trackingNo;
         this.originHub = originHub;
         this.destHub = destHub;
         this.weightKg = weightKg;
-        this.serviceType = serviceType;
+        this.freightValue = freightValue;
         this.promisedAt = promisedAt;
     }
 
@@ -65,7 +65,7 @@ public class Shipment {
     public Hub getOriginHub()              { return originHub; }
     public Hub getDestHub()                { return destHub; }
     public BigDecimal getWeightKg()        { return weightKg; }
-    public ServiceType getServiceType()    { return serviceType; }
+    public BigDecimal getFreightValue()    { return freightValue; }
     public ShipmentStatus getStatus()      { return status; }
     public OffsetDateTime getCreatedAt()   { return createdAt; }
     public OffsetDateTime getPromisedAt()  { return promisedAt; }
@@ -74,8 +74,8 @@ public class Shipment {
     public void setTrackingNo(String trackingNo)       { this.trackingNo = trackingNo; }
     public void setOriginHub(Hub originHub)            { this.originHub = originHub; }
     public void setDestHub(Hub destHub)                { this.destHub = destHub; }
-    public void setWeightKg(BigDecimal weightKg)       { this.weightKg = weightKg; }
-    public void setServiceType(ServiceType serviceType){ this.serviceType = serviceType; }
+    public void setWeightKg(BigDecimal weightKg)           { this.weightKg = weightKg; }
+    public void setFreightValue(BigDecimal freightValue)   { this.freightValue = freightValue; }
     public void setStatus(ShipmentStatus status)       { this.status = status; }
     public void setPromisedAt(OffsetDateTime promisedAt)   { this.promisedAt = promisedAt; }
     public void setDeliveredAt(OffsetDateTime deliveredAt) { this.deliveredAt = deliveredAt; }

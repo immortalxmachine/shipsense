@@ -7,8 +7,13 @@
 
 ![CI](https://github.com/immortalxmachine/shipsense/actions/workflows/ci.yml/badge.svg)
 
-ShipSense is a portfolio project. All data is **synthetic** and clearly labelled
-as such; every metric below comes from actually running the code.
+ShipSense is a portfolio project built on **real data**: the model trains on the
+[Olist Brazilian E-Commerce Public Dataset](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce)
+(~96k real orders with actual purchase→delivery timestamps), and the routing
+graph is Brazil's 27 federative units with centroids from Olist's real
+geolocation data. Nothing is fabricated — the ETA target is the *observed*
+delivery time, and every metric below comes from actually running the code on
+that data. See [Data](#data) for provenance and licence.
 
 ---
 
@@ -21,7 +26,7 @@ flowchart LR
     API -->|POST /predict| ML[FastAPI ML service<br/>scikit-learn]
     ML -->|loads| M[[GradientBoosting<br/>model.joblib]]
     subgraph Offline training
-        GEN[generate_data.py] --> CLEAN[clean_transform.py ETL] --> TRAIN[train.py] --> M
+        OLIST[(Olist CSVs<br/>Kaggle)] --> BUILD[build_dataset.py] --> CLEAN[clean_transform.py ETL] --> TRAIN[train.py] --> M
     end
 ```
 
@@ -29,8 +34,8 @@ flowchart LR
 - The **Java API** owns the database (shipments, hubs, routes, tracking events)
   and, for each shipment, calls the **Python ML service** for a delay prediction
   (with a graceful fallback if the ML service is down).
-- The **ML service** serves a gradient-boosted model trained offline by a small
-  data pipeline.
+- The **ML service** serves a gradient-boosted delivery-time model trained
+  offline, by a small data pipeline, on the real Olist dataset.
 
 See [`docs/architecture.md`](docs/architecture.md) for the design rationale.
 
@@ -50,12 +55,13 @@ See [`docs/architecture.md`](docs/architecture.md) for the design rationale.
 
 ## Features
 
-- **Track a parcel** — status, scan-event timeline and ML-predicted delay.
-- **Route planner** — shortest path between any two hubs via Dijkstra's
+- **Track a parcel** — status, scan-event timeline and ML-predicted delivery time.
+- **Route planner** — shortest path between any two state hubs via Dijkstra's
   algorithm (own implementation), with total distance and ETA.
-- **Analytics** — on-time % by hub, average delay by service type, and shipment
-  volume over time (Recharts).
-- **ML delay prediction** — gradient-boosted regressor with graceful fallback.
+- **Analytics** — on-time % by origin state, average delivery time by destination
+  state, and shipment volume over time (Recharts).
+- **ML delivery-time prediction** — gradient-boosted regressor with graceful
+  fallback, trained on real delivery durations.
 - **OpenAPI/Swagger UI**, global JSON error handling, CORS, Actuator health.
 
 ---
@@ -83,6 +89,9 @@ psql "postgresql://shipsense:changeme_local_only@localhost:5432/shipsense" -f db
 # 2. ML service
 cd ml-service && python -m venv .venv && .venv/Scripts/activate   # (Windows)
 pip install -r requirements-dev.txt
+# train.py trains from the committed data/clean_shipments.parquet if present.
+# To rebuild from raw Olist, download it first (see "Data"), then:
+#   rm -f data/clean_shipments.parquet && python train.py
 python train.py                      # trains model + writes metrics.json
 uvicorn app.main:app --port 8000
 
@@ -108,14 +117,14 @@ cd frontend && npm install && npm run dev
 | DELETE | `/api/shipments/{id}` | Delete a shipment |
 | GET    | `/api/shipments/{trackingNo}/events` | Scan-event timeline |
 | POST   | `/api/shipments/{id}/events` | Append a tracking event |
-| GET    | `/api/hubs` | List hubs |
-| GET    | `/api/routes/optimal?from=CHN&to=DEL` | Optimal route (Dijkstra) |
+| GET    | `/api/hubs` | List hubs (states) |
+| GET    | `/api/routes/optimal?from=SP&to=RS` | Optimal route (Dijkstra) |
 
 ### Python ML service (`http://localhost:8000`)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST   | `/predict` | Predicted delay hours + on-time probability |
+| POST   | `/predict` | Predicted delivery days + on-time probability |
 | GET    | `/health` | Liveness + model-loaded flag |
 | GET    | `/metrics` | Training metrics (MAE/RMSE, feature importances) |
 
@@ -123,27 +132,58 @@ cd frontend && npm install && npm run dev
 
 ## Machine-learning results
 
-Trained on **49,000** cleaned rows (from 50,000 generated; 1,000 dirty rows
-dropped by the ETL step), 80/20 train/test split. Numbers from
+**Task:** predict a parcel's delivery time in **days** — the real target
+`delivery_days = order_delivered_customer_date − order_purchase_timestamp`,
+observed from Olist's actual timestamps.
+
+Trained on **96,406** cleaned rows (from 96,470 delivered orders; 64 dropped for
+out-of-range delivery times), 80/20 train/test split (77,124 / 19,282). Mean
+real delivery time is **12.5 days**. Numbers from
 [`ml-service/models/metrics.json`](ml-service/models/metrics.json):
 
-| Model | MAE (hours) | RMSE (hours) |
-|-------|------------:|-------------:|
-| Baseline — Linear Regression | 2.633 | 3.287 |
-| **GradientBoostingRegressor** | **2.035** | **2.551** |
+| Model | MAE (days) | RMSE (days) |
+|-------|-----------:|------------:|
+| Baseline — Linear Regression | 5.287 | 7.653 |
+| **GradientBoostingRegressor** | **4.866** | **7.159** |
 
-The gradient-boosted model improves MAE by **22.7%** over the linear baseline by
-capturing non-linear interactions (hub-load congestion threshold,
-festival×monsoon compounding, distance×load coupling). Top feature importances:
-`hub_load` (0.51), `distance_km` (0.32), `month` (0.09).
+The gradient-boosted model improves MAE by **8.0%** over the linear baseline by
+capturing non-linear effects the line cannot. The gap is honestly modest — real
+logistics data is far noisier than a clean synthetic rule, and a few very slow
+deliveries drive RMSE well above MAE. Top feature importances: `distance_km`
+(0.62), `purchase_month` (0.23, seasonality), `freight_value` (0.05). Features
+are all derived from real order attributes (seller/customer-state distance,
+weight, freight, same-state flag, purchase weekday/month, IBGE macro-region).
+
+On-time probability is a deterministic, explainable logistic transform of the
+predicted delivery time versus the carrier's own estimate (the real on-time rate
+in the data, delivered ≤ estimate, is **91.9%**).
 
 ---
 
 ## Data
 
-- **20** hubs (real Indian cities) and **29** road links (stored as 58 directed
-  edges) in [`db/seed.sql`](db/seed.sql).
-- **10** sample shipments with tracking histories.
+Source: **Olist Brazilian E-Commerce Public Dataset** (Kaggle:
+[`olistbr/brazilian-ecommerce`](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce),
+licence **CC BY-NC-SA 4.0**). ~100k real orders (2016–2018) with purchase,
+estimate and delivery timestamps, geolocation, and seller/customer locations.
+
+Download it (needed only to rebuild the model from raw) into `data/olist/`:
+
+```bash
+export KAGGLE_API_TOKEN=$(cat ~/.kaggle/access_token)
+kaggle datasets download -d olistbr/brazilian-ecommerce -p data/olist --unzip
+```
+
+The raw CSVs (~130 MB) are **not** committed; the cleaned model dataset
+(`ml-service/data/clean_shipments.parquet`) **is**, so the model and Docker image
+reproduce without the download. The database seed is regenerated from the raw
+data with [`db/build_seed.py`](db/build_seed.py).
+
+- **27** hubs (Brazilian states/DF; centroids from real Olist geolocation) and
+  **51** real border links (stored as 102 directed edges) in
+  [`db/seed.sql`](db/seed.sql).
+- **14** sample shipments — a real, reproducible sample of actual Olist orders
+  (real timestamps, weights and freight) with tracking histories.
 - **5** analytical SQL queries (window function + CTE) in
   [`db/analytics.sql`](db/analytics.sql).
 
@@ -151,28 +191,30 @@ festival×monsoon compounding, distance×load coupling). Top feature importances
 
 ## Tests
 
-**23 automated tests**, all green in CI:
+**28 automated tests**, all green in CI:
 
 - **Backend (15, JUnit 5 + Mockito + MockMvc, H2):** Dijkstra unit tests
   (incl. no-path and same-hub edge cases), service-layer tests, and a full-stack
   controller test.
-- **ML service (8, pytest):** pipeline (generation, cleaning, feature
-  engineering) and API (stubbed model, validation, 503 paths).
+- **ML service (13, pytest):** geography/graph (symmetry, connectivity,
+  haversine), pipeline (cleaning, feature engineering), and API (stubbed model,
+  validation, unknown-region and 503 paths, on-time-probability logic).
 
 ```bash
 cd backend-java && ./mvnw test      # 15 tests
-cd ml-service   && pytest           #  8 tests
+cd ml-service   && pytest           # 13 tests
 ```
 
 ---
 
 ## Screenshots
 
-_Add screenshots of the Track, Route planner and Analytics pages here._
+![ShipSense — React frontend, Track a parcel page](docs/img/demo.png)
 
-- `docs/screenshot-track.png`
-- `docs/screenshot-route.png`
-- `docs/screenshot-analytics.png`
+*The React + TypeScript frontend (Vite dev server): the Track-a-parcel page with
+the nav to Route planner and Analytics. The SPA calls the Spring Boot API
+(`:8080`); run the full stack (`docker compose up`) for live tracking, route and
+analytics data.*
 
 ---
 

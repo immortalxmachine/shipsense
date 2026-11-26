@@ -34,12 +34,14 @@ is slower (`O(V·E)`).
 
 ## Why gradient boosting over linear regression?
 
-The true delay process has **non-linear interactions** (a congestion threshold
-on hub load, festival×monsoon compounding, distance×load coupling). A linear
-model cannot represent these with the raw features, so it plateaus. Gradient
-boosting builds additive trees that capture interactions and thresholds,
-improving test MAE by ~23% over the linear baseline. The linear model is kept as
-an honest baseline so the improvement is measurable.
+Real delivery time is a **non-linear** function of the features: distance has
+diminishing/accelerating effects across regions, seasonality (purchase month)
+matters, and freight interacts with distance. A plain linear model cannot
+represent these, so it plateaus (test MAE 5.29 days). Gradient boosting builds
+additive trees that capture those non-linearities and interactions, improving
+test MAE by ~8% (to 4.87 days) over the linear baseline. The linear model is kept
+as an honest baseline so the improvement is measurable — a smaller gap than on
+clean synthetic data, which is exactly what real, noisy logistics data looks like.
 
 To avoid **train/serve skew**, both training and serving build features through
 one shared module (`pipeline/features.py`), guaranteeing identical column order

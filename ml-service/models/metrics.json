@@ -1,29 +1,39 @@
 {
-  "trained_at": "2026-11-25T22:50:25+00:00",
-  "n_rows": 49000,
-  "n_train": 39200,
-  "n_test": 9800,
+  "trained_at": "2026-11-26T04:26:42+00:00",
+  "dataset": "Olist Brazilian E-Commerce (Kaggle: olistbr/brazilian-ecommerce)",
+  "target": "delivery_days (actual order_delivered_customer_date - order_purchase_timestamp)",
+  "n_rows": 96406,
+  "n_train": 77124,
+  "n_test": 19282,
+  "mean_delivery_days": 12.471,
+  "median_delivery_days": 10.213,
   "baseline_model": "LinearRegression",
   "model": "GradientBoostingRegressor",
   "baseline_metrics": {
-    "mae": 2.633,
-    "rmse": 3.287
+    "mae": 5.287,
+    "rmse": 7.653
   },
   "model_metrics": {
-    "mae": 2.035,
-    "rmse": 2.551
+    "mae": 4.866,
+    "rmse": 7.159
   },
-  "mae_improvement_pct_over_baseline": 22.7,
+  "mae_improvement_pct_over_baseline": 8.0,
   "feature_importances": {
-    "hub_load": 0.5065,
-    "distance_km": 0.3194,
-    "month": 0.0932,
-    "service_STANDARD": 0.0437,
-    "day_of_week": 0.0119,
-    "service_PRIORITY": 0.0111,
-    "is_festival_season": 0.0073,
-    "is_monsoon": 0.0065,
-    "weight_kg": 0.0003,
-    "service_EXPRESS": 0.0
+    "distance_km": 0.6238,
+    "purchase_month": 0.2286,
+    "freight_value": 0.0522,
+    "same_state": 0.0301,
+    "cust_region_SE": 0.0256,
+    "weight_kg": 0.0182,
+    "purchase_dow": 0.0074,
+    "seller_region_SE": 0.0052,
+    "cust_region_NE": 0.0034,
+    "cust_region_N": 0.0027,
+    "seller_region_S": 0.0008,
+    "cust_region_S": 0.0007,
+    "seller_region_N": 0.0005,
+    "cust_region_CO": 0.0003,
+    "seller_region_CO": 0.0003,
+    "seller_region_NE": 0.0003
   }
 }

@@ -1,9 +1,9 @@
-"""FastAPI app exposing the delay-prediction model.
+"""FastAPI app exposing the delivery-time (ETA) prediction model.
 
 Endpoints:
   GET  /health   -> liveness + whether a model is loaded
   GET  /metrics  -> the metrics.json produced by train.py
-  POST /predict  -> predicted delay hours + on-time probability
+  POST /predict  -> predicted delivery days + on-time probability
 
 Run locally:
     uvicorn app.main:app --reload --port 8000
@@ -43,8 +43,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="ShipSense ML Service",
-    description="Delay prediction for parcel shipments",
-    version="0.1.0",
+    description="Delivery-time (ETA) prediction for parcel shipments, trained on the "
+                "real Olist Brazilian E-Commerce dataset.",
+    version="0.2.0",
     lifespan=lifespan,
 )
 

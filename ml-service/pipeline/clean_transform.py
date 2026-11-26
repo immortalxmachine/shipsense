@@ -1,10 +1,14 @@
-"""ETL step: clean + validate + engineer features for the raw shipment data.
+"""ETL step: clean + validate + engineer features for the raw Olist shipment data.
 
-Reads the raw CSV, drops/repairs invalid rows (logging how many of each), then
-writes an analysis-ready dataset to Parquet (and CSV). Kept modular so each
-stage reads like a real data pipeline.
+Reads the raw per-order CSV produced by ``build_dataset.py``, drops invalid or
+incomplete rows (logging how many of each), then writes an analysis-ready
+dataset to Parquet (and CSV). Kept modular so each stage reads like a real data
+pipeline.
 
-Run:
+Rows are *dropped*, never imputed — the dataset is large enough that we never
+need to invent a missing value.
+
+Run (from ml-service/):
     python -m pipeline.clean_transform --in data/raw_shipments.csv \
         --out-parquet data/clean_shipments.parquet --out-csv data/clean_shipments.csv
 """
@@ -17,19 +21,28 @@ from dataclasses import dataclass, asdict
 
 import pandas as pd
 
-from pipeline.features import SERVICE_TYPES, engineer
+from pipeline.features import engineer
+from pipeline.geo import REGIONS
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 log = logging.getLogger("clean_transform")
+
+# Essential real fields a usable row must carry.
+REQUIRED = ["distance_km", "weight_kg", "freight_value",
+            "cust_region", "seller_region", "delivery_days"]
+
+# Guard against physically impossible / data-entry outliers.
+MAX_DELIVERY_DAYS = 100.0
 
 
 @dataclass
 class CleaningReport:
     rows_in: int = 0
+    dropped_missing_fields: int = 0
     dropped_bad_weight: int = 0
-    dropped_bad_distance: int = 0
-    dropped_bad_service: int = 0
-    dropped_bad_calendar: int = 0
+    dropped_bad_freight: int = 0
+    dropped_bad_delivery: int = 0
+    dropped_bad_region: int = 0
     dropped_duplicates: int = 0
     rows_out: int = 0
 
@@ -42,27 +55,32 @@ def clean(df: pd.DataFrame) -> tuple[pd.DataFrame, CleaningReport]:
     """Validate and drop bad rows, returning the clean frame and a report."""
     report = CleaningReport(rows_in=len(df))
 
-    # 1. Weight must be positive.
-    bad = df["weight_kg"] <= 0
+    # 1. Essential fields must be present.
+    bad = df[REQUIRED].isna().any(axis=1)
+    report.dropped_missing_fields = int(bad.sum())
+    df = df[~bad]
+
+    # 2. Weight must be non-negative (0 is allowed; some products have no weight).
+    bad = df["weight_kg"] < 0
     report.dropped_bad_weight = int(bad.sum())
     df = df[~bad]
 
-    # 2. Distance must be positive.
-    bad = df["distance_km"] <= 0
-    report.dropped_bad_distance = int(bad.sum())
+    # 3. Freight must be non-negative.
+    bad = df["freight_value"] < 0
+    report.dropped_bad_freight = int(bad.sum())
     df = df[~bad]
 
-    # 3. Service type must be one of the known tiers (catches nulls + typos).
-    bad = ~df["service_type"].isin(SERVICE_TYPES)
-    report.dropped_bad_service = int(bad.sum())
+    # 4. Delivery time must be positive and within a sane bound.
+    bad = (df["delivery_days"] <= 0) | (df["delivery_days"] > MAX_DELIVERY_DAYS)
+    report.dropped_bad_delivery = int(bad.sum())
     df = df[~bad]
 
-    # 4. Calendar fields must be in range.
-    bad = (~df["month"].between(1, 12)) | (~df["day_of_week"].between(0, 6))
-    report.dropped_bad_calendar = int(bad.sum())
+    # 5. Regions must be known IBGE macro-regions.
+    bad = (~df["cust_region"].isin(REGIONS)) | (~df["seller_region"].isin(REGIONS))
+    report.dropped_bad_region = int(bad.sum())
     df = df[~bad]
 
-    # 5. Exact-duplicate rows add no information.
+    # 6. Exact-duplicate rows add no information.
     before = len(df)
     df = df.drop_duplicates()
     report.dropped_duplicates = before - len(df)
@@ -72,7 +90,7 @@ def clean(df: pd.DataFrame) -> tuple[pd.DataFrame, CleaningReport]:
 
 
 def transform(df: pd.DataFrame) -> pd.DataFrame:
-    """Add the engineered model features (one-hot service, int flags)."""
+    """Add the engineered model features (one-hot regions, int flags)."""
     return engineer(df)
 
 

@@ -1,6 +1,5 @@
 package com.shipsense.dto;
 
-import com.shipsense.entity.ServiceType;
 import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
@@ -11,23 +10,24 @@ import java.time.OffsetDateTime;
  * {@code @Valid} in the controller; failures become a 400 via the global handler.
  *
  * @param trackingNo     optional; auto-generated when null/blank
- * @param originHubCode  3-letter hub code, e.g. "DEL"
- * @param destHubCode    3-letter hub code, e.g. "CHN"
+ * @param originHubCode  2-letter state (UF) code, e.g. "SP" (seller state)
+ * @param destHubCode    2-letter state (UF) code, e.g. "RJ" (customer state)
  * @param weightKg       parcel weight, must be positive
- * @param serviceType    STANDARD | EXPRESS | PRIORITY
- * @param promisedAt     SLA deadline
+ * @param freightValue   freight paid in BRL, must be non-negative
+ * @param promisedAt     estimated delivery date
  */
 public record ShipmentRequest(
         @Size(max = 20) String trackingNo,
 
-        @NotBlank @Size(min = 3, max = 3) String originHubCode,
+        @NotBlank @Size(min = 2, max = 2) String originHubCode,
 
-        @NotBlank @Size(min = 3, max = 3) String destHubCode,
+        @NotBlank @Size(min = 2, max = 2) String destHubCode,
 
         @NotNull @DecimalMin(value = "0.01", message = "weightKg must be positive")
         BigDecimal weightKg,
 
-        @NotNull ServiceType serviceType,
+        @NotNull @DecimalMin(value = "0.0", message = "freightValue must be non-negative")
+        BigDecimal freightValue,
 
         @NotNull OffsetDateTime promisedAt
 ) {

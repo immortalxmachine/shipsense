@@ -1,4 +1,4 @@
-"""Wraps the trained model: builds features, predicts delay, derives on-time prob."""
+"""Wraps the trained model: builds features, predicts delivery days, derives on-time prob."""
 from __future__ import annotations
 
 import math
@@ -10,15 +10,16 @@ from app.schemas import PredictRequest, PredictResponse
 from pipeline.features import single_row_frame
 
 
-def on_time_probability(delay_hours: float, grace: float = 3.0, scale: float = 4.0) -> float:
-    """Map a predicted delay to a probability of on-time delivery.
+def on_time_probability(predicted_days: float, estimated_days: float, scale: float = 3.0) -> float:
+    """Probability the parcel arrives on or before the carrier's estimate.
 
-    A logistic curve: ~0.5 when the predicted delay equals the ``grace`` window,
-    rising towards 1 for early/on-time parcels and falling towards 0 as the
-    predicted delay grows. (A deterministic, explainable alternative to training
-    a separate classifier.)
+    A logistic curve on the slack between the estimate and the prediction:
+    ~0.5 when the predicted delivery time equals the estimate, rising towards 1
+    when we predict delivery comfortably inside the estimate and falling towards
+    0 when we predict it blowing past the estimate. A deterministic, explainable
+    alternative to training a separate classifier.
     """
-    z = (delay_hours - grace) / scale
+    z = (predicted_days - estimated_days) / scale
     z = max(-50.0, min(50.0, z))          # guard against overflow
     return 1.0 / (1.0 + math.exp(z))
 
@@ -30,10 +31,14 @@ class Predictor:
 
     def predict(self, req: PredictRequest) -> PredictResponse:
         row = single_row_frame(req.model_dump())[self.feature_columns]
-        delay = float(self.model.predict(row)[0])
+        days = float(self.model.predict(row)[0])
+        prob = (
+            round(on_time_probability(days, req.estimated_days), 4)
+            if req.estimated_days is not None else None
+        )
         return PredictResponse(
-            predicted_delay_hours=round(delay, 2),
-            on_time_probability=round(on_time_probability(delay), 4),
+            predicted_delivery_days=round(days, 2),
+            on_time_probability=prob,
         )
 
 

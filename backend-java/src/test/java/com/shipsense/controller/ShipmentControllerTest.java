@@ -50,20 +50,20 @@ class ShipmentControllerTest {
         routeRepository.deleteAll();
         hubRepository.deleteAll();
 
-        Hub del = hubRepository.save(new Hub("DEL", "Delhi Hub", "Delhi",
-                new BigDecimal("28.6"), new BigDecimal("77.2")));
-        Hub chn = hubRepository.save(new Hub("CHN", "Chennai Hub", "Chennai",
-                new BigDecimal("13.0"), new BigDecimal("80.2")));
-        Hub blr = hubRepository.save(new Hub("BLR", "Bengaluru Hub", "Bengaluru",
-                new BigDecimal("12.9"), new BigDecimal("77.5")));
+        Hub rs = hubRepository.save(new Hub("RS", "Rio Grande do Sul Hub", "Rio Grande do Sul",
+                "S", new BigDecimal("-29.7"), new BigDecimal("-52.0")));
+        Hub sp = hubRepository.save(new Hub("SP", "São Paulo Hub", "São Paulo",
+                "SE", new BigDecimal("-23.2"), new BigDecimal("-47.1")));
+        Hub mg = hubRepository.save(new Hub("MG", "Minas Gerais Hub", "Minas Gerais",
+                "SE", new BigDecimal("-19.9"), new BigDecimal("-44.4")));
 
-        // CHN-BLR-DEL (350+2000) is shorter than direct CHN-DEL (2500).
-        saveBoth(chn, blr, 350, 6);
-        saveBoth(blr, del, 2000, 33);
-        saveBoth(chn, del, 2500, 42);
+        // SP-MG-RS (350+2000) is shorter than direct SP-RS (2500).
+        saveBoth(sp, mg, 350, 6);
+        saveBoth(mg, rs, 2000, 33);
+        saveBoth(sp, rs, 2500, 42);
 
         when(mlPredictionClient.predict(any()))
-                .thenReturn(new PredictionResult(12.5, 0.77, true));
+                .thenReturn(new PredictionResult(11.5, 0.77, true));
     }
 
     private void saveBoth(Hub a, Hub b, double km, double hrs) {
@@ -76,14 +76,14 @@ class ShipmentControllerTest {
         mockMvc.perform(get("/api/hubs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(3)))
-                .andExpect(jsonPath("$[*].code", hasItems("DEL", "CHN", "BLR")));
+                .andExpect(jsonPath("$[*].code", hasItems("RS", "SP", "MG")));
     }
 
     @Test
     void optimalRoute_returnsShortestPath() throws Exception {
-        mockMvc.perform(get("/api/routes/optimal").param("from", "CHN").param("to", "DEL"))
+        mockMvc.perform(get("/api/routes/optimal").param("from", "SP").param("to", "RS"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.path", contains("CHN", "BLR", "DEL")))
+                .andExpect(jsonPath("$.path", contains("SP", "MG", "RS")))
                 .andExpect(jsonPath("$.totalDistanceKm", is(2350.0)));
     }
 
@@ -101,10 +101,10 @@ class ShipmentControllerTest {
     void createThenTrackShipment_includesPrediction() throws Exception {
         String body = """
                 {
-                  "originHubCode": "DEL",
-                  "destHubCode": "CHN",
+                  "originHubCode": "SP",
+                  "destHubCode": "RS",
                   "weightKg": 2.5,
-                  "serviceType": "EXPRESS",
+                  "freightValue": 25.90,
                   "promisedAt": "2030-01-01T00:00:00Z"
                 }
                 """;
@@ -114,15 +114,15 @@ class ShipmentControllerTest {
                         .content(body))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.trackingNo", matchesPattern("SS\\d{10}")))
-                .andExpect(jsonPath("$.predictedDelayHours", is(12.5)))
+                .andExpect(jsonPath("$.predictedDeliveryDays", is(11.5)))
                 .andReturn();
 
         String trackingNo = JsonPath.read(result.getResponse().getContentAsString(), "$.trackingNo");
 
         mockMvc.perform(get("/api/shipments/{trackingNo}", trackingNo))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.originCode", is("DEL")))
-                .andExpect(jsonPath("$.destCode", is("CHN")))
+                .andExpect(jsonPath("$.originCode", is("SP")))
+                .andExpect(jsonPath("$.destCode", is("RS")))
                 .andExpect(jsonPath("$.onTimeProbability", is(0.77)));
     }
 }

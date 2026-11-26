@@ -1,6 +1,5 @@
 package com.shipsense.dto;
 
-import com.shipsense.entity.ServiceType;
 import com.shipsense.entity.Shipment;
 import com.shipsense.entity.ShipmentStatus;
 
@@ -8,7 +7,8 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 /**
- * API view of a {@link Shipment}, optionally enriched with an ML delay prediction.
+ * API view of a {@link Shipment}, optionally enriched with an ML delivery-time
+ * prediction.
  */
 public record ShipmentResponse(
         Integer id,
@@ -18,12 +18,12 @@ public record ShipmentResponse(
         String destCode,
         String destCity,
         BigDecimal weightKg,
-        ServiceType serviceType,
+        BigDecimal freightValue,
         ShipmentStatus status,
         OffsetDateTime createdAt,
         OffsetDateTime promisedAt,
         OffsetDateTime deliveredAt,
-        Double predictedDelayHours,
+        Double predictedDeliveryDays,
         Double onTimeProbability
 ) {
 
@@ -34,7 +34,7 @@ public record ShipmentResponse(
 
     /** Build a response, attaching the prediction when one is available. */
     public static ShipmentResponse from(Shipment s, PredictionResult prediction) {
-        Double delay = (prediction != null) ? prediction.predictedDelayHours() : null;
+        Double days = (prediction != null) ? prediction.predictedDeliveryDays() : null;
         Double prob = (prediction != null) ? prediction.onTimeProbability() : null;
         return new ShipmentResponse(
                 s.getId(),
@@ -44,12 +44,12 @@ public record ShipmentResponse(
                 s.getDestHub().getCode(),
                 s.getDestHub().getCity(),
                 s.getWeightKg(),
-                s.getServiceType(),
+                s.getFreightValue(),
                 s.getStatus(),
                 s.getCreatedAt(),
                 s.getPromisedAt(),
                 s.getDeliveredAt(),
-                delay,
+                days,
                 prob
         );
     }

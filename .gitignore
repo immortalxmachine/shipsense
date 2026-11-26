@@ -25,10 +25,12 @@ env/
 *.joblib
 *.pkl
 
-# Generated ML data (regenerable, can be large)
+# Generated ML data (regenerable, can be large). The cleaned Parquet IS
+# committed so the model + Docker image reproduce without the Kaggle download.
 ml-service/data/*.csv
 ml-service/data/*.parquet
 !ml-service/data/.gitkeep
+!ml-service/data/clean_shipments.parquet
 
 # ===== Node / React =====
 node_modules/
@@ -46,3 +48,6 @@ Thumbs.db
 
 # ===== Docker =====
 *.local
+
+# ===== Real source data (Olist, downloaded from Kaggle; not committed) =====
+data/olist/

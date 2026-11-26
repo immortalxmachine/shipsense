@@ -47,7 +47,7 @@ export default function App() {
       </main>
 
       <footer className="mx-auto max-w-5xl px-6 py-6 text-center text-xs text-slate-400">
-        ShipSense · synthetic demo data · portfolio project
+        ShipSense · real Olist order sample · portfolio project
       </footer>
     </div>
   );

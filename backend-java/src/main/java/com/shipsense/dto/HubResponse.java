@@ -6,10 +6,10 @@ import java.math.BigDecimal;
 
 /** API view of a {@link Hub}. */
 public record HubResponse(Integer id, String code, String name, String city,
-                          BigDecimal lat, BigDecimal lng) {
+                          String region, BigDecimal lat, BigDecimal lng) {
 
     public static HubResponse from(Hub h) {
         return new HubResponse(h.getId(), h.getCode(), h.getName(), h.getCity(),
-                h.getLat(), h.getLng());
+                h.getRegion(), h.getLat(), h.getLng());
     }
 }

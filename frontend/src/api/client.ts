@@ -1,13 +1,14 @@
 // Typed client for the ShipSense Java backend. Base URL comes from env config.
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
 
-export type ServiceType = "STANDARD" | "EXPRESS" | "PRIORITY";
+export type Region = "N" | "NE" | "CO" | "SE" | "S";
 
 export interface Hub {
   id: number;
   code: string;
   name: string;
   city: string;
+  region: Region;
   lat: number;
   lng: number;
 }
@@ -20,12 +21,12 @@ export interface Shipment {
   destCode: string;
   destCity: string;
   weightKg: number;
-  serviceType: ServiceType;
+  freightValue: number;
   status: string;
   createdAt: string;
   promisedAt: string;
   deliveredAt: string | null;
-  predictedDelayHours: number | null;
+  predictedDeliveryDays: number | null;
   onTimeProbability: number | null;
 }
 

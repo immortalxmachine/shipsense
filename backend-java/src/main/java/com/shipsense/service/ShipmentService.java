@@ -9,6 +9,7 @@ import com.shipsense.repository.TrackingEventRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
@@ -55,7 +56,7 @@ public class ShipmentService {
         }
 
         Shipment shipment = new Shipment(trackingNo, origin, dest,
-                req.weightKg(), req.serviceType(), req.promisedAt());
+                req.weightKg(), req.freightValue(), req.promisedAt());
         Shipment saved = shipmentRepository.save(shipment);
         return ShipmentResponse.from(saved, predictDelay(saved));
     }
@@ -76,9 +77,9 @@ public class ShipmentService {
 
     public ShipmentResponse update(Integer id, ShipmentUpdateRequest req) {
         Shipment s = requireById(id);
-        if (req.weightKg() != null)    s.setWeightKg(req.weightKg());
-        if (req.serviceType() != null) s.setServiceType(req.serviceType());
-        if (req.promisedAt() != null)  s.setPromisedAt(req.promisedAt());
+        if (req.weightKg() != null)      s.setWeightKg(req.weightKg());
+        if (req.freightValue() != null)  s.setFreightValue(req.freightValue());
+        if (req.promisedAt() != null)    s.setPromisedAt(req.promisedAt());
         if (req.status() != null) {
             s.setStatus(req.status());
             if (req.status() == ShipmentStatus.DELIVERED && s.getDeliveredAt() == null) {
@@ -133,7 +134,8 @@ public class ShipmentService {
 
     /**
      * Build the feature vector for one shipment and ask the ML service for a
-     * delay prediction. Returns a fallback result if the service is unavailable.
+     * delivery-time prediction. Every feature is derived from real shipment
+     * attributes. Returns a fallback result if the service is unavailable.
      */
     private PredictionResult predictDelay(Shipment s) {
         double distanceKm = routeService.shortestDistanceKm(
@@ -142,19 +144,24 @@ public class ShipmentService {
         OffsetDateTime basis = s.getCreatedAt();
         int dayOfWeek = basis.getDayOfWeek().getValue() - 1; // Java 1..7 (Mon..Sun) -> 0..6
         int month = basis.getMonthValue();
-        boolean festival = (month == 10 || month == 11);     // Diwali / festival season
-        boolean monsoon = (month >= 6 && month <= 9);        // SW monsoon
-        int hubLoad = (int) Math.min(100, shipmentRepository.countByOriginHubId(s.getOriginHub().getId()));
+        boolean sameState = s.getOriginHub().getCode().equals(s.getDestHub().getCode());
+
+        // Carrier's estimated window (days from purchase to promised date) drives
+        // the on-time probability; it is not a model feature.
+        Double estimatedDays = (s.getPromisedAt() != null && s.getCreatedAt() != null)
+                ? Duration.between(s.getCreatedAt(), s.getPromisedAt()).toSeconds() / 86_400.0
+                : null;
 
         MlPredictRequest features = new MlPredictRequest(
                 distanceKm,
                 s.getWeightKg().doubleValue(),
-                s.getServiceType().name(),
+                s.getFreightValue().doubleValue(),
+                sameState,
                 dayOfWeek,
                 month,
-                festival,
-                monsoon,
-                hubLoad
+                s.getDestHub().getRegion(),    // customer region
+                s.getOriginHub().getRegion(),  // seller region
+                estimatedDays
         );
         return mlPredictionClient.predict(features);
     }

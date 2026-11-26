@@ -3,19 +3,30 @@ from fastapi.testclient import TestClient
 
 from app import main as app_main
 from app.main import app, get_predictor
+from app.predictor import on_time_probability
 from app.schemas import PredictResponse
 
+
+def test_on_time_probability_monotonic():
+    # Predicting well inside the estimate -> high on-time prob; past it -> low.
+    early = on_time_probability(predicted_days=8.0, estimated_days=18.0)
+    on_estimate = on_time_probability(predicted_days=18.0, estimated_days=18.0)
+    late = on_time_probability(predicted_days=28.0, estimated_days=18.0)
+    assert early > on_estimate > late
+    assert abs(on_estimate - 0.5) < 1e-6
+    assert 0.0 <= late < 0.5 < early <= 1.0
+
 VALID_PAYLOAD = {
-    "distance_km": 2175.0, "weight_kg": 2.5, "service_type": "EXPRESS",
-    "day_of_week": 2, "month": 11, "is_festival_season": True,
-    "is_monsoon": False, "hub_load": 60,
+    "distance_km": 430.0, "weight_kg": 0.9, "freight_value": 15.1,
+    "same_state": False, "purchase_dow": 1, "purchase_month": 11,
+    "cust_region": "SE", "seller_region": "SE", "estimated_days": 18.0,
 }
 
 
 class StubPredictor:
     """Stand-in for the real Predictor so tests don't need a trained model."""
     def predict(self, req):
-        return PredictResponse(predicted_delay_hours=7.5, on_time_probability=0.42)
+        return PredictResponse(predicted_delivery_days=11.5, on_time_probability=0.83)
 
 
 def test_health_ok():
@@ -32,8 +43,8 @@ def test_predict_with_stub_model():
             resp = client.post("/predict", json=VALID_PAYLOAD)
         assert resp.status_code == 200
         body = resp.json()
-        assert body["predicted_delay_hours"] == 7.5
-        assert body["on_time_probability"] == 0.42
+        assert body["predicted_delivery_days"] == 11.5
+        assert body["on_time_probability"] == 0.83
     finally:
         app.dependency_overrides.clear()
 
@@ -43,7 +54,18 @@ def test_predict_validation_error():
     # (there may be no trained model in CI). month=13 is out of range -> 422.
     app.dependency_overrides[get_predictor] = lambda: StubPredictor()
     try:
-        bad = dict(VALID_PAYLOAD, month=13)
+        bad = dict(VALID_PAYLOAD, purchase_month=13)
+        with TestClient(app) as client:
+            resp = client.post("/predict", json=bad)
+        assert resp.status_code == 422
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_predict_rejects_unknown_region():
+    app.dependency_overrides[get_predictor] = lambda: StubPredictor()
+    try:
+        bad = dict(VALID_PAYLOAD, cust_region="ZZ")
         with TestClient(app) as client:
             resp = client.post("/predict", json=bad)
         assert resp.status_code == 422

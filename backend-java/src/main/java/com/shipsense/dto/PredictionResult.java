@@ -1,14 +1,14 @@
 package com.shipsense.dto;
 
 /**
- * Delay prediction returned by the Python ML service (or a fallback when it is
- * unavailable).
+ * Delivery-time prediction returned by the Python ML service (or a fallback
+ * when it is unavailable).
  *
- * @param predictedDelayHours estimated delay in hours (0 = expected on time)
- * @param onTimeProbability   probability the parcel arrives on time, 0..1
- * @param modelAvailable      false when the ML service was down and a fallback was used
+ * @param predictedDeliveryDays estimated delivery time in days
+ * @param onTimeProbability     probability the parcel arrives on time, 0..1 (may be null)
+ * @param modelAvailable        false when the ML service was down and a fallback was used
  */
-public record PredictionResult(Double predictedDelayHours,
+public record PredictionResult(Double predictedDeliveryDays,
                                Double onTimeProbability,
                                boolean modelAvailable) {
 

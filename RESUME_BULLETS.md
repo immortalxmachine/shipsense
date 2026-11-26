@@ -1,20 +1,20 @@
 # Resume bullets — ShipSense
 
 Format: **action verb + what I built + how + measurable result.** All numbers are
-real, measured from this repository (see README / `metrics.json`). Keep to ~25
-words each; trim to fit your resume.
+real, measured from this repository on real public data (see README /
+`metrics.json`). Keep to ~25 words each; trim to fit your resume.
 
 1. **Built** a full-stack parcel-logistics platform (Spring Boot, FastAPI, React,
-   PostgreSQL, Docker) exposing 9 REST endpoints, with 23 automated tests passing
+   PostgreSQL, Docker) exposing 9 REST endpoints, with 28 automated tests passing
    in GitHub Actions CI.
 
-2. **Trained** a gradient-boosting delay-prediction model on 49,000 shipments,
-   cutting error (MAE) 22.7% versus a linear baseline to 2.0 hours, served via a
-   FastAPI microservice.
+2. **Trained** a gradient-boosting delivery-time (ETA) model on **96K real orders**
+   from the Olist Brazilian e-commerce dataset, predicting actual delivery days at
+   4.9-day MAE (8% better than a linear baseline), served via a FastAPI microservice.
 
 3. **Implemented** Dijkstra's shortest-path route optimizer from scratch
-   (PriorityQueue + adjacency list, O((V+E) log V)) over a 20-hub road network,
-   exposed as a REST endpoint.
+   (PriorityQueue + adjacency list, O((V+E) log V)) over a real 27-state Brazilian
+   road-border network, exposed as a REST endpoint.
 
 4. **Containerized** four services with Docker Compose for one-command startup and
    automated build/test/lint across Java, Python and TypeScript through a
@@ -26,5 +26,6 @@ words each; trim to fit your resume.
 
 - Designed a layered Spring Boot API (controller/service/repository, JPA, global
   error handling) calling a Python ML service with graceful fallback.
-- Engineered a Python ETL + training pipeline (50k synthetic rows → cleaned 49k)
-  producing a model with 2.0-hour MAE, 23% better than baseline.
+- Engineered a Python ETL + training pipeline over the real Olist dataset (96K
+  orders), deriving every feature from real order attributes with zero fabricated
+  values, producing a delivery-time model with 4.9-day MAE.

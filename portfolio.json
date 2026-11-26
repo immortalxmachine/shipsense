@@ -1,14 +1,15 @@
 {
   "title": "ShipSense",
-  "tagline": "Parcel delivery ETA prediction & route optimization",
+  "tagline": "Parcel delivery ETA prediction & route optimization (real Olist data)",
   "category": "Software",
   "highlights": [
     "Layered Spring Boot API (controller/service/repository, JPA, global error handling).",
-    "Python ETL + scikit-learn training pipeline (50k synthetic rows → 49k cleaned) for ETA prediction.",
-    "Dijkstra-based route optimization with a React + TypeScript frontend, containerized with Docker."
+    "Python ETL + scikit-learn pipeline on 96K real Olist orders predicting actual delivery days (4.9-day MAE, 8% over baseline).",
+    "Dijkstra route optimization over a real 27-state Brazilian border graph, with a React + TypeScript frontend, containerized with Docker."
   ],
   "metrics": [
-    { "label": "Training rows", "value": "49K" },
+    { "label": "Real orders", "value": "96K" },
+    { "label": "ETA MAE", "value": "4.9 days" },
     { "label": "Services", "value": "3" }
   ],
   "demo": null,

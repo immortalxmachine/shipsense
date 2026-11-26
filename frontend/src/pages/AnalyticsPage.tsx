@@ -45,18 +45,18 @@ export default function AnalyticsPage() {
     }));
   }, [delivered]);
 
-  const delayByService = useMemo(() => {
+  // Average purchase-to-delivery time (days) per destination state.
+  const deliveryTimeByDest = useMemo(() => {
     const map = new Map<string, { sum: number; n: number }>();
     for (const s of delivered) {
-      const entry = map.get(s.serviceType) ?? { sum: 0, n: 0 };
-      entry.sum += hoursBetween(s.deliveredAt!, s.promisedAt);
+      const entry = map.get(s.destCode) ?? { sum: 0, n: 0 };
+      entry.sum += hoursBetween(s.deliveredAt!, s.createdAt) / 24;
       entry.n += 1;
-      map.set(s.serviceType, entry);
+      map.set(s.destCode, entry);
     }
-    return [...map.entries()].map(([service, v]) => ({
-      service,
-      avgDelayHours: Number((v.sum / v.n).toFixed(2)),
-    }));
+    return [...map.entries()]
+      .map(([dest, v]) => ({ dest, avgDays: Number((v.sum / v.n).toFixed(2)) }))
+      .sort((a, b) => b.avgDays - a.avgDays);
   }, [delivered]);
 
   const volumeOverTime = useMemo(() => {
@@ -99,17 +99,17 @@ export default function AnalyticsPage() {
           )}
         </Card>
 
-        <Card title="Avg delay by service type (hours)">
-          {delayByService.length === 0 ? (
+        <Card title="Avg delivery time by destination state (days)">
+          {deliveryTimeByDest.length === 0 ? (
             <Empty />
           ) : (
             <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={delayByService}>
+              <BarChart data={deliveryTimeByDest}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="service" fontSize={12} />
+                <XAxis dataKey="dest" fontSize={12} />
                 <YAxis fontSize={12} />
                 <Tooltip />
-                <Bar dataKey="avgDelayHours" fill={ACCENT} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="avgDays" fill={ACCENT} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
